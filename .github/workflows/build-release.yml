@@ -1,0 +1,79 @@
+name: Build Release APK
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web app (relative base untuk Capacitor)
+        run: npx vite build --base "./"
+
+      - name: Install Capacitor
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Sync web assets
+        run: npx cap sync android
+
+      - name: Configure release signing in build.gradle
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const p = 'android/app/build.gradle';
+          let s = fs.readFileSync(p, 'utf8');
+          const signing =
+            '    signingConfigs {\n' +
+            '        release {\n' +
+            '            storeFile file("release.keystore")\n' +
+            '            storePassword System.getenv("KEYSTORE_PASSWORD")\n' +
+            '            keyAlias System.getenv("KEY_ALIAS")\n' +
+            '            keyPassword System.getenv("KEY_PASSWORD")\n' +
+            '        }\n' +
+            '    }\n';
+          if (!s.includes('signingConfigs')) {
+            s = s.replace('    buildTypes {', signing + '    buildTypes {');
+          }
+          if (!s.includes('signingConfig signingConfigs.release')) {
+            s = s.replace('minifyEnabled false',
+              'minifyEnabled false\n            signingConfig signingConfigs.release');
+          }
+          fs.writeFileSync(p, s);
+          console.log('build.gradle patched for release signing');
+          NODE
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Decode keystore from secret
+        run: echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/release.keystore
+
+      - name: Build release APK
+        env:
+          KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+        run: cd android && chmod +x gradlew && ./gradlew assembleRelease
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wejobs-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk

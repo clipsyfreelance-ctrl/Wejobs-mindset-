@@ -1,0 +1,46 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build web app (relative base untuk Capacitor)
+        run: npx vite build --base "./"
+
+      - name: Install Capacitor
+        run: npm install @capacitor/core @capacitor/cli @capacitor/android
+
+      - name: Add Android platform
+        run: npx cap add android
+
+      - name: Sync web assets
+        run: npx cap sync android
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Build APK (debug)
+        run: cd android && chmod +x gradlew && ./gradlew assembleDebug
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wejobs-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk
