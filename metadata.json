@@ -1,0 +1,6 @@
+{
+  "name": "WEJOBS - Freelance Micro-Job Platform",
+  "description": "Global freelance micro-job platform for writing, digital content, translation, editing, transcription, research, and digital tasks with USD rewards.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
